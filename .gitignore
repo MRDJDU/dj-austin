@@ -40,3 +40,35 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# Eclipse project file
+# File - prefix with .
+*.class
+
+# Log file
+*.log
+*.log*
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Folder
+target
+logs\
+
+#customize ignore
+/ds-mars-web/src/test/java/com/ds/mars/CodeGenUtils.java
+/docs/api-req/
+qodana.yaml

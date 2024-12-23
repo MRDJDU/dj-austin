@@ -1,9 +1,0 @@
-TID: N/A|2024-12-20 17:16:39.956  INFO 9804 --- [main] org.dj.web.WebApp                        : Starting WebApp using Java 17.0.12 on LAPTOP-IOIGVQHJ with PID 9804 (C:\Users\85363\Desktop\dj-austin\dj-austin\dj-austin-web\build\classes\java\main started by DJ in C:\Users\85363\Desktop\dj-austin\dj-austin)
-TID: N/A|2024-12-20 17:16:39.959  INFO 9804 --- [main] org.dj.web.WebApp                        : No active profile set, falling back to 1 default profile: "default"
-TID: N/A|2024-12-20 17:16:40.614  INFO 9804 --- [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8080 (http)
-TID: N/A|2024-12-20 17:16:40.623  INFO 9804 --- [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-TID: N/A|2024-12-20 17:16:40.623  INFO 9804 --- [main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.63]
-TID: N/A|2024-12-20 17:16:40.699  INFO 9804 --- [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-TID: N/A|2024-12-20 17:16:40.699  INFO 9804 --- [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 704 ms
-TID: N/A|2024-12-20 17:16:40.956  INFO 9804 --- [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8080 (http) with context path ''
-TID: N/A|2024-12-20 17:16:40.964  INFO 9804 --- [main] org.dj.web.WebApp                        : Started WebApp in 1.59 seconds (JVM running for 2.042)
