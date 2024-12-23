@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    链接：https://juejin.cn/post/7078552015755804686
+    configuration : 配置文件的根元素，它包含了多个子元素：appender、logger 和 root
+    1、appender : 用于指定日志输出的目的地，目的地可以是控制台、文件、数据库等等，每一个appender都需要有一个唯一的名称和一个类定义
+    2、logger : 定义了日志记录器，用于记录指定类的日志信息,把它关联到应用的对应的context上后，主要用于存放日志对象。logger元素需要指定一个名称和一个级别，以及一个可选的appender-ref子元素，用于将日志记录器连接到一个appender
+    3、Layout :负责把事件转换成字符串，格式化的日志信息的输出。在logback中Layout对象被封装在encoder中。
+    4、root : 定义了根日志记录器，它会接收所有未被其他logger接收的日志事件
+
+    当您引入 spring-boot-starter-web 时，它实际上会自动引入 spring-boot-starter-logging 依赖，而 spring-boot-starter-logging 又包含了 Logback 的依赖。
+-->
+
+<!--
+org.slf4j.MDC
+在第一个微服务处理请求时，将 Trace ID 和其他相关信息存入 MDC。
+在调用下一个微服务时，通过 HTTP 请求头将这些信息传递过去。例如，可以使用 RestTemplate 或 Feign 客户端来设置请求头。
+
+MDC 定义：MDC 是一个与当前线程绑定的哈希表，允许开发者将键值对存储在其中。这些键值对可以在同一线程中被访问，便于记录与当前操作相关的上下文信息。
+目的：MDC 的主要目的是在处理并发请求时，能够在日志中保留与每个请求相关的信息，避免日志信息的交错和混淆。
+
+上下文信息存储：开发者可以使用 MDC 存储任何需要在日志中记录的上下文数据，例如用户 ID、请求 IP、会话 ID 等。
+线程安全：MDC 是线程局部的，这意味着每个线程都有自己的 MDC 实例，确保了数据的隔离性和安全性。
+
+put(String key, Object value)：将指定的键值对存入当前线程的 MDC。
+get(String key)：获取当前线程 MDC 中指定键的值。
+remove(String key)：删除当前线程 MDC 中指定键的值。
+clear()：移除当前线程中所有的 MDC 数据。
+getContext()：获取当前线程的 MDC 内容。
+
+请求跟踪：在 Web 应用程序中，可以在请求处理开始时将请求 ID 或 Trace ID 存入 MDC，然后在整个请求处理过程中随时访问这些信息，帮助跟踪和调试。
+错误排查：当系统出现错误时，通过查看包含 MDC 信息的日志，可以快速定位问题发生的位置和相关上下文。
+分布式系统：在微服务架构中，MDC 可以用于跨服务传递 Trace ID，从而将不同服务生成的日志串联起来，形成完整的请求链。
+-->
+
+<configuration scan="true" scanPeriod="10 seconds" debug="false">
+    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" />
+    <!--引入 Spring Boot 提供的默认 Logback 配置，确保基础配置的统一性。 -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <!--  定义一个 Spring 属性 log-path，其值来源于 logging.file.name，用于动态设置日志文件路径。  -->
+    <springProperty name="log-path" source="logging.file.name"/>
+
+    <!--  Appender 是负责将日志输出到特定目标（如控制台、文件等）的组件
+     %-5level
+       %d{yyyy-MM-dd HH:mm:ss.SSS}日期
+       %c类的全限定名称
+       %M为method
+       %L为行号
+       %thread线程名称
+       %m或者%msg为信息
+       %n换行
+    -->
+    <!--  控制台打印  -->
+    <appender name="APP-CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <!--   class: ch.qos.logback.core.encoder.LayoutWrappingEncoder 是一个编码器，用于定义日志输出的格式。它将日志事件格式化为字符串，然后输出     -->
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.TraceIdPatternLogbackLayout">
+                <!-- CONSOLE_LOG_PATTERN 为 org/springframework/boot/logging/logback/defaults.xml 定义的输出格式 -->
+                <!-- %tid 追踪id占位符 -->
+                <pattern>%tid|${CONSOLE_LOG_PATTERN}</pattern>
+            </layout>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    <!--  skywalking打印  -->
+    <appender name="skywalking-grpc-log" class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.log.GRPCLogClientAppender">
+        <!--  GRPCLogClientAppender 将应用程序的日志信息通过 gRPC 协议发送到 SkyWalking 后端。它支持实时监控和分析，特别适合分布式系统中的性能管理和故障排查。通过合理配置，可以有效提升应用程序的可观察性。 -->
+        <!--
+        Trace ID 获取方式：
+            TraceIdPatternLogbackLayout 直接获取 Trace ID，不依赖于 MDC。
+            TraceIdMDCPatternLogbackLayout 从 MDC 中获取 Trace ID，适合多线程环境。
+        占位符的使用：
+            TraceIdPatternLogbackLayout 使用 %tid。
+            TraceIdMDCPatternLogbackLayout 使用 %X{tid}。
+        如果应用程序是单线程或不涉及复杂的上下文管理，可以选择 TraceIdPatternLogbackLayout。
+        如果应用程序需要处理多线程或异步请求，并且希望能够安全地传递和访问 Trace ID，则应选择 TraceIdMDCPatternLogbackLayout。
+        -->
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.mdc.TraceIdMDCPatternLogbackLayout">
+                <Pattern>%msg%n</Pattern>
+            </layout>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+    </appender>
+    <!--  控制台异步打印  -->
+    <!--
+    异步日志记录：AsyncAppender 是 Logback 提供的一种异步日志记录机制。它通过将日志事件放入一个内部队列中，并使用单独的线程来处理这些事件，从而减少主线程的阻塞，提高应用程序的性能。
+    性能提升：使用异步日志可以显著提高系统的并发性能，尤其是在高负载情况下，避免了日志记录操作对主业务逻辑的影响。
+
+    生产者-消费者模式：当应用程序生成日志事件时，这些事件会被放入一个阻塞队列中。一个专门的工作线程（Worker Thread）会从这个队列中取出事件，并将其传递给引用的 Appender（如 APP-CONSOLE）进行实际输出。
+    避免阻塞：通过将日志处理移到后台线程，主线程可以继续执行，而不会因为日志记录而被阻塞。这对于需要高性能和高并发的应用程序尤为重要。
+    -->
+    <appender name="APP-CONSOLE-ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <!-- 不丢失日志.默认的,如果队列的80%已满,则会丢弃TRACT、DEBUG、INFO级别的日志 -->
+        <!--
+        这个配置项用于控制日志丢弃策略。当队列中的剩余容量低于该阈值时，AsyncAppender 将丢弃某些级别的日志事件。
+        设置为 0 表示在队列满时不会丢弃任何日志，而是会阻塞当前线程，直到有空间可用。这意味着所有级别的日志都会被保留，不会丢失。
+        -->
+        <discardingThreshold>0</discardingThreshold>
+        <!--
+        该行引用了另一个 Appender（在此例中为 APP-CONSOLE），表示 APP-CONSOLE-ASYNC 将异步处理并转发到 APP-CONSOLE。这意味着实际的日志输出仍然依赖于 APP-CONSOLE 的实现。
+        -->
+        <appender-ref ref="APP-CONSOLE"/>
+    </appender>
+
+    <!--  文件打印  -->
+    <!--
+    功能：RollingFileAppender 是 Logback 的一种日志输出方式，能够将日志事件写入到文件中，并根据特定条件（如时间或文件大小）进行滚动（归档当前日志文件并开始新的日志文件）。
+    优点：这种方式可以避免单个日志文件过大，便于管理和查找历史日志。
+    -->
+    <appender name="APP-FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log-path}.log</File>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.TraceIdPatternLogbackLayout">
+                <!--
+                org/springframework/boot/logging/logback/defaults.xml
+                FILE_LOG_PATTERN 默认输出文本格式
+                -->
+                <pattern>%tid|${FILE_LOG_PATTERN}</pattern>
+            </layout>
+            <charset>UTF-8</charset>
+        </encoder>
+        <!--
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">：
+        指定使用时间基础的滚动策略，这意味着日志文件会根据时间进行滚动。
+        <fileNamePattern>${log-path}-%d{yyyyMMdd}.log</fileNamePattern>：
+        定义滚动后的文件名模式。这里使用日期格式化 %d{yyyyMMdd}，表示每天生成一个新的日志文件。例如，如果今天是 2024 年 12 月 23 日，生成的日志文件名可能是 /var/logs/myapp-20241223.log。
+        <maxHistory>60</maxHistory>：
+        指定保留历史日志文件的最大天数。在这个例子中，最多保留 60 天的历史日志。
+        <totalSizeCap>10GB</totalSizeCap>：
+        限制所有历史日志文件的总大小不超过 10GB。这意味着一旦达到该限制，最旧的日志文件将被删除以腾出空间。
+        -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${log-path}-%d{yyyyMMdd}.log</fileNamePattern>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+    <!--  文件异步打印  -->
+    <appender name="APP-FILE-ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="APP-FILE"/>
+    </appender>
+
+
+    <!--  系统审计日志  -->
+    <appender name="SYS-AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log-path}-audit.json</File>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${log-path}-%d{yyyyMMdd}-audit.json</fileNamePattern>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
+        <!--
+        功能：LoggingEventCompositeJsonEncoder 是 Logstash Logback Encoder 提供的一个编码器，它允许将日志事件格式化为 JSON 格式。这种格式化方式便于与 ELK（Elasticsearch, Logstash, Kibana）栈集成，从而实现日志的集中管理和分析。
+        优点：JSON 格式的日志易于机器解析，适合进行搜索、过滤和分析。
+
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">：
+        指定使用 LoggingEventCompositeJsonEncoder 类来处理日志事件的编码。
+        <providers>：
+        定义提供者，用于指定如何构建 JSON 输出。在这里，使用了一个嵌套的 <pattern> 元素。
+        嵌套的 <pattern>：
+        该部分定义了 JSON 输出的结构。每个键值对对应于日志事件中的特定信息
+        -->
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <pattern>
+                    <pattern>
+                        <!--
+                        "ip": "${ip}"：将 IP 地址作为字段输出，${ip} 是一个变量，可以在运行时设置。
+                        "app": "${appName}"：应用程序名称，${appName} 是另一个变量，用于指定当前应用的名称。
+                        "level": "%level"：日志级别（如 DEBUG、INFO、ERROR 等）。
+                        "trace": "%X{X-B3-TraceId:-}"：从 MDC 中提取 B3 Trace ID，用于分布式追踪。若没有值，则返回默认值 -。
+                        "span": "%X{X-B3-SpanId:-}"：从 MDC 中提取 B3 Span ID，表示当前请求的跨度。
+                        "parent": "%X{X-B3-ParentSpanId:-}"：从 MDC 中提取 B3 Parent Span ID，表示父请求的跨度。
+                        "thread": "%thread"：当前执行日志的线程名称。
+                        "class": "%logger{40}"：记录日志的类名，最多显示 40 个字符。
+                        "message": "%message"：实际的日志消息内容。
+                        "stack_trace": "%exception{10}"：异常堆栈跟踪信息，如果有异常，将显示最多 10 行堆栈信息。
+                        "user_id": "%mdc{user}"：从 MDC 中提取用户 ID 信息。
+                        "requestIp": "%mdc{requestIp}"：从 MDC 中提取请求 IP 地址。
+                        "app_id": "%mdc{user-id}"：从 MDC 中提取应用 ID 信息。
+                        -->
+                        {
+                        "ip": "${ip}",
+                        "app": "${appName}",
+                        "level": "%level",
+                        "trace": "%X{X-B3-TraceId:-}",
+                        "span": "%X{X-B3-SpanId:-}",
+                        "parent": "%X{X-B3-ParentSpanId:-}",
+                        "thread": "%thread",
+                        "class": "%logger{40}",
+                        "message": "%message",
+                        "stack_trace": "%exception{10}",
+                        "user_id": "%mdc{user}",
+                        "requestIp": "%mdc{requestIp}",
+                        "app_id": "%mdc{user-id}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
+        </encoder>
+    </appender>
+
+    <!--
+        name:指定受此logger约束的某一个包或者具体的某一个类。或者用于自定义日志名称
+        level:设置打印级别（TRACE, DEBUG, INFO, WARN, ERROR, ALL 和 OFF）
+        addtivity:描述是否向上级logger传递打印信息。默认是true。
+          - 当设置为false，当前 Logger 的日志输出将完全独立于父 Logger。
+          - 如果当前 Logger 没有配置任何 Appender，则该 Logger 的日志不会被输出。
+    -->
+    <logger name="org.geotools.renderer.lite" level="OFF">
+        <!-- 来自该包的任何日志消息都不会被记录或输出。 -->
+        <appender-ref ref="skywalking-grpc-log"/>
+        <appender-ref ref="APP-CONSOLE-ASYNC"/>
+        <appender-ref ref="APP-FILE-ASYNC"/>
+    </logger>
+
+    <logger name="auditLogger" level="info" additivity="false">
+        <!--
+           自定义日志名称
+           private static final Logger AUDIT_LOG = LoggerFactory.getLogger("auditLogger");
+        -->
+        <appender-ref ref="SYS-AUDIT"/>
+    </logger>
+
+    <!--  定义根 Logger 的日志级别和默认输出目标。所有未特别指定 Logger 的日志都会使用根 Logger 的配置。  -->
+    <!--
+    配置 <root level="info"> 确保了只有 INFO 及以上级别的日志会被输出，而 TRACE 和 DEBUG 等低于 INFO 的日志将不会被记录。
+    这种配置通常用于生产环境，以减少日志量并提高重要信息的可见性。
+    -->
+    <root level="info">
+        <appender-ref ref="skywalking-grpc-log"/>
+        <appender-ref ref="APP-CONSOLE-ASYNC"/>
+        <appender-ref ref="APP-FILE-ASYNC"/>
+    </root>
+</configuration>

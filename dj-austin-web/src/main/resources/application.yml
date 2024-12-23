@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: dj-austin-web
+
+logging:
+  file:
+    path: './logs'
+    name: ${logging.file.path}/${spring.application.name}/${spring.application.name}
